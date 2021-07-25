@@ -27,7 +27,7 @@ class Simulation:
         return var
 
     def create_processes(self):
-        tau = 1//self.λ
+        tau = math.ceil(1/self.λ)
         self.processes = []
         for id in range(self.n):
             arrival_time = math.floor(self.next_exp())
@@ -40,7 +40,7 @@ class Simulation:
             # last burst doesn't have io
             bursts.append((math.ceil(self.next_exp()), None))
             self.processes.append(
-                Process(id, arrival_time, num_bursts, bursts)
+                Process(id, arrival_time, num_bursts, bursts,tau)
             )
         for process in self.processes:
             print(f'Process {process.id} (arrival time {process.arrival_time} ms) {process.num_bursts} CPU bursts ({tau}ms)')
@@ -50,9 +50,10 @@ class Simulation:
     def run_simulation(self):
         self.create_processes()
         # algorithms.sjf, algorithms.srt, algorithms.rr):
-        for alg in (algorithms.fcfs,):
+        for alg in (algorithms.fcfs, algorithms.sjf):
             p = copy.deepcopy(self.processes)
             alg(p, self.context_switch_time, self.α, self.time_slice)
+            print()
 
 
 if __name__ == '__main__':
