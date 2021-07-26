@@ -67,7 +67,7 @@ def fcfs(processes: List[Process], context_switch_time: int, _, __):
                 cpu_process = ready_queue.pop(0)
                 cpu_process.state = State.RUNNING
                 cpu.contextInTimer = (context_switch_time // 2) - 1
-                cpu.burstTimer = cpu_process.cpu_bursts.pop(0)
+                cpu.burstTimer = cpu_process.cpu_bursts.pop(0) - 1
                 cpu.inUse = True
         else:
             # if in use, count down context timer, then count down burst timer
@@ -80,13 +80,14 @@ def fcfs(processes: List[Process], context_switch_time: int, _, __):
             # handle context switch timer out of cpu
             elif cpu.contextOutTimer != 0:
                 cpu.contextOutTimer -= 1
-                if cpu.contextInTimer == 0:
+                if cpu.contextOutTimer == 0:
                     cpu.inUse = False
             # handle cpu burst timer
             else:
-                if cpu.burstTimer != 0:
+                if cpu.burstTimer != 1:
                     cpu.burstTimer -= 1
                 else:
+                    cpu.burstTimer = 0
                     cpu.contextOutTimer = (context_switch_time // 2) - 1
                     # if no io burst, terminate
                     if cpu_process.io_bursts[0] != None:
@@ -95,7 +96,7 @@ def fcfs(processes: List[Process], context_switch_time: int, _, __):
                         # sum = current io burst timer + iterate through waiting queue and get their burst times + this process's io burst time
                         waiting_queue.append(cpu_process)
                         print(
-                            f'time {timer}ms: Process {cpu_process.id} switching out of CPU; will block on I/O until time {timer + io.burstTimer + sum([x.io_bursts[0] for x in waiting_queue])}ms {queue_to_string(ready_queue)}')
+                            f'time {timer}ms: Process {cpu_process.id} switching out of CPU; will block on I/O until time {-1 + timer + io.burstTimer + sum([x.io_bursts[0] for x in waiting_queue])}ms {queue_to_string(ready_queue)}')
                     else:
                         print(
                             f'time {timer}ms: Process {cpu_process.id} terminated {queue_to_string(ready_queue)}')
@@ -106,7 +107,7 @@ def fcfs(processes: List[Process], context_switch_time: int, _, __):
             if waiting_queue:
                 io_process = waiting_queue.pop(0)
                 io.inUse = True
-                io.burstTimer = io_process.io_bursts.pop(0)
+                io.burstTimer = io_process.io_bursts.pop(0) - 1
         else:
             io.burstTimer -= 1
             if io.burstTimer == 0:
@@ -196,7 +197,7 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
                 cpu.contextInTimer = (context_switch_time // 2) - 1
                 nextBurst = cpu_process.cpu_bursts.pop(0)
                 cpu.burstTimer = nextBurst
-                cpu_process.previousBurstTime = nextBurst  # update prev burst
+                cpu_process.previousBurstTime = nextBurst # update prev burst
                 cpu.inUse = True
         else:
             # if in use, count down context timer, then count down burst timer
@@ -209,13 +210,14 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
             # handle context switch timer out of cpu
             elif cpu.contextOutTimer != 0:
                 cpu.contextOutTimer -= 1
-                if cpu.contextInTimer == 0:
+                if cpu.contextOutTimer == 0:
                     cpu.inUse = False
             # handle cpu burst timer
             else:
-                if cpu.burstTimer != 0:
+                if cpu.burstTimer != 1:
                     cpu.burstTimer -= 1
                 else:
+                    cpu.burstTimer = 0
                     cpu.contextOutTimer = (context_switch_time // 2) - 1
                     # if no io burst, terminate
                     if cpu_process.io_bursts[0] != None:
@@ -225,7 +227,7 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
                         waiting_queue.append(cpu_process)
                         predict_tau(cpu_process, α,timer, queue_to_string(ready_queue))
                         print(
-                            f'time {timer}ms: Process {cpu_process.id} switching out of CPU; will block on I/O until time {timer + io.burstTimer + sum([x.io_bursts[0] for x in waiting_queue])}ms {queue_to_string(ready_queue)}')
+                            f'time {timer}ms: Process {cpu_process.id} switching out of CPU; will block on I/O until time {-1 + timer + io.burstTimer + sum([x.io_bursts[0] for x in waiting_queue])}ms {queue_to_string(ready_queue)}')
                     else:
                         print(
                             f'time {timer}ms: Process {cpu_process.id} terminated {queue_to_string(ready_queue)}')
@@ -236,7 +238,7 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
             if waiting_queue:
                 io_process = waiting_queue.pop(0)
                 io.inUse = True
-                io.burstTimer = io_process.io_bursts.pop(0)
+                io.burstTimer = io_process.io_bursts.pop(0) - 1
         else:
             io.burstTimer -= 1
             if io.burstTimer == 0:
