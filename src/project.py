@@ -49,7 +49,7 @@ class Simulation:
     def run_simulation(self):
         self.create_processes()
         # algorithms.sjf, algorithms.srt, algorithms.rr):
-        for alg in (algorithms.fcfs, algorithms.sjf):
+        for alg in (algorithms.fcfs, algorithms.sjf, algorithms.rr):
             p = copy.deepcopy(self.processes)
             alg(p, self.context_switch_time, self.α, self.time_slice)
             print()

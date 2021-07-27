@@ -21,5 +21,5 @@ class Process:
         self.cpu_bursts = [burst[0] for burst in bursts]
         self.io_bursts = [burst[1] for burst in bursts]
         self.previousBurstTime = self.cpu_bursts[0]
-
+        self.interrupted = False
         self.state = State.READY
