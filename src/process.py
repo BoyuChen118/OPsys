@@ -23,3 +23,16 @@ class Process:
         self.previousBurstTime = self.cpu_bursts[0]
         self.interrupted = False
         self.state = State.READY
+
+        self.burst_time = sum(self.cpu_bursts)
+        self.turnaround_time = 0
+        self.wait_time = 0
+
+    def avg_burst_time(self):
+        return self.burst_time / self.num_bursts
+
+    def avg_turnaround_time(self):
+        return self.turnaround_time / self.num_bursts
+
+    def avg_wait_time(self):
+        return self.wait_time / self.num_bursts
