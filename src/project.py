@@ -44,7 +44,6 @@ class Simulation:
             )
         for process in self.processes:
             print(f'Process {process.id} (arrival time {process.arrival_time} ms) {process.num_bursts} CPU bursts ({tau}ms)')
-            print()
 
 
     def run_simulation(self):
