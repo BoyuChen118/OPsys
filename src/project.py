@@ -52,7 +52,7 @@ class Simulation:
         # algorithms.sjf, algorithms.srt, algorithms.rr):
         # for alg in [algorithms.fcfs]:
         with open('simout.txt', 'w+') as f:
-            for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf), ('RR', algorithms.rr)):
+            for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf),('SRT',algorithms.srt), ('RR', algorithms.rr)):
                 p = copy.deepcopy(self.processes)
                 sim = algorithm(p, self.context_switch_time,
                                 self.α, self.time_slice)

@@ -14,6 +14,7 @@ class CPU:
 def predict_tau(process: Process, α, timer: int, queue: str):
     prevTau = process.tau
     process.tau = math.ceil(process.previousBurstTime * α + (1-α)*process.tau)
+    process.tauRemaining = process.tau
     print(f'time {timer}ms: Recalculated tau from {prevTau}ms to {process.tau}ms for process {process.id} {queue}')
 
 
@@ -150,7 +151,7 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
     completed_processes: List[Process] = []
 
     total_burst_time = 0
-    num_preemptions = 0  # TODO: need to count preemptions
+    num_preemptions = 0 
     num_context_switches = 0
 
     timer = 0
@@ -258,7 +259,133 @@ def sjf(processes: List[Process], context_switch_time: int, α, _):
 
 # Shortest remaining time
 def srt(processes: List[Process], context_switch_time: int, α, _):
-    pass
+    n = len(processes)
+    # ready queue has to be empty at first
+    # start the timer
+    # once the timer reaches the arrival time of a process in the process list, we add it to the ready queue
+    processes = sorted(processes, key=lambda process: (
+        process.arrival_time, process.id)
+    )
+
+    ready_queue: List[Process] = []
+    waiting_queue: List[(Process, int)] = []
+    completed_processes: List[Process] = []
+
+    timer = 0
+
+    total_burst_time = 0
+    num_preemptions = 0  
+    num_context_switches = 0
+
+    cpu = CPU()
+    print(f"time {timer}ms: Simulator started for SRT [Q empty]")
+    while len(completed_processes) != n:
+        if not cpu.inUse and cpu.contextOutTimer == 0:
+            if ready_queue:  # if in ready queue, it def has a burst
+                
+                ready_queue = sorted(ready_queue, key= lambda process:(
+                   process.tauRemaining, process.arrival_time, process.id
+                ))
+                cpu_process = ready_queue.pop(0)
+                cpu_process.state = State.RUNNING
+                cpu.contextInTimer = (context_switch_time // 2) -1
+                nextBurst = cpu_process.cpu_bursts.pop(0)
+                cpu.burstTimer = nextBurst
+                cpu_process.previousBurstTime = cpu_process.originalBurstTime # update prev burst
+                cpu.inUse = True
+        else:
+            # if in use, count down context timer, then count down burst timer
+            # handle context switch timer into of cpu
+            if cpu.contextInTimer != 0:
+                cpu.contextInTimer -= 1
+                if cpu.contextInTimer == 0:
+                    if not cpu_process.interrupted:
+                        print(
+                            f'time {timer}ms: Process {cpu_process.id} started using the CPU for {cpu.burstTimer}ms burst {queue_to_string(ready_queue)}')
+                        cpu_process.originalBurstTime = cpu.burstTimer
+                    else:
+                        print(f'time {timer}ms: Process {cpu_process.id} started using the CPU for remaining {cpu.burstTimer}ms of {cpu_process.originalBurstTime}ms burst {queue_to_string(ready_queue)}')
+                    if any(p.tauRemaining < cpu_process.tauRemaining for p in ready_queue): # if current process has longer remaining than any in ready queue (rare case: only happens when a process with shorter tau in ready q when cpu still context switching)
+                        cpu_process.interrupted = True
+                        cpu.contextOutTimer = (context_switch_time // 2)
+                        cpu_process.cpu_bursts.insert(0,cpu.burstTimer)
+                        replacement = next(p for p in ready_queue if p.tauRemaining < cpu_process.tauRemaining)
+                        cpu.burstTimer = 0
+                        print(f'time {timer}ms: Process {replacement.id} (tau {replacement.tau}ms) will preempt {cpu_process.id} {queue_to_string(ready_queue)}')
+                        num_preemptions += 1
+                        ready_queue.append(cpu_process)
+            # handle context switch timer out of cpu
+            elif cpu.contextOutTimer != 0:
+                cpu.contextOutTimer -= 1
+                if cpu.contextOutTimer == 0:
+                    cpu.inUse = False
+            # handle cpu burst timer
+            else:
+                if cpu.burstTimer != 0:
+
+                    cpu.burstTimer -= 1
+                    cpu_process.tauRemaining -= 1
+                    if cpu.burstTimer == 0:
+                        cpu.contextOutTimer = (context_switch_time // 2) - 1
+                        # if no io burst, terminate
+                        if cpu_process.io_bursts[0] != None:
+                            print(
+                                f'time {timer}ms: Process {cpu_process.id} (tau {process.tau}ms) completed a CPU burst; {len(cpu_process.cpu_bursts)} bursts to go {queue_to_string(ready_queue)}')
+                            # sum = current io burst timer + iterate through waiting queue and get their burst times + this process's io burst time
+                            added_time = cpu_process.io_bursts.pop(0)
+                            waiting_queue.append((cpu_process, timer + added_time))
+                            predict_tau(cpu_process, α,timer, queue_to_string(ready_queue))
+                            print(
+                                f'time {timer}ms: Process {cpu_process.id} switching out of CPU; will block on I/O until time {timer + added_time}ms {queue_to_string(ready_queue)}')
+                            cpu_process.interrupted = False
+                            waiting_queue = sorted(waiting_queue, key = lambda x : (x[1], x[0].id))
+                        else:
+                            print(
+                                f'time {timer}ms: Process {cpu_process.id} terminated {queue_to_string(ready_queue)}')
+                            completed_processes.append(cpu_process)
+
+        # io burst
+        while waiting_queue and waiting_queue[0][1] == timer:
+            io_process = waiting_queue.pop(0)[0]
+            if (cpu_process.tauRemaining > io_process.tauRemaining) and (cpu.contextInTimer == 0) and (cpu.contextOutTimer == 0) and cpu.inUse:  # if process that finished io has shorter tau than current running process
+                cpu_process.interrupted = True
+                cpu.contextOutTimer = (context_switch_time // 2)
+                cpu_process.cpu_bursts.insert(0,cpu.burstTimer)
+                cpu.burstTimer = 0
+                print(f'time {timer}ms: Process {io_process.id} (tau {io_process.tau}ms) completed I/O; preempting {cpu_process.id} {queue_to_string(ready_queue)}')
+                ready_queue.append(cpu_process)
+                ready_queue.append(io_process)
+                num_preemptions += 1
+            else:    
+                ready_queue.append(io_process)
+                print(
+                f'time {timer}ms: Process {io_process.id} completed I/O; added to ready queue {queue_to_string(ready_queue)}')
+
+        # new arrival
+        while processes and processes[0].arrival_time == timer:
+            process = processes.pop(0)
+            ready_queue.append(process)
+            print(
+                
+                f'time {process.arrival_time}ms: Process {process.id} (tau {process.tau}ms) arrived; added to ready queue {queue_to_string(ready_queue)}')
+
+        timer += 1
+
+    total_sim_time = timer + (context_switch_time // 2)-1
+
+    print(f'time {total_sim_time}ms: Simulator ended for SRT [Q empty]\n')
+
+    avg_burst = sum([x.avg_burst_time() for x in completed_processes])/n
+    avg_turnaround = sum([x.avg_turnaround_time()
+                         for x in completed_processes])/n
+    avg_wait = sum([x.avg_wait_time() for x in completed_processes])/n
+    cpu_utilization = total_burst_time/total_sim_time
+
+    return {'avg_burst': avg_burst, 'avg_turnaround': avg_turnaround,
+            'avg_wait': avg_wait, 'num_preemptions': num_preemptions,
+            'num_context_switches': num_context_switches, 'cpu_utilization': cpu_utilization*100}
+    
+
 
 
 # Round robin

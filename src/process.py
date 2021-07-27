@@ -18,8 +18,10 @@ class Process:
         # self.bursts = bursts
 
         self.tau = tau
+        self.tauRemaining = self.tau  # keeps track of remaining time
         self.cpu_bursts = [burst[0] for burst in bursts]
         self.io_bursts = [burst[1] for burst in bursts]
+        self.originalBurstTime = self.cpu_bursts[0]
         self.previousBurstTime = self.cpu_bursts[0]
         self.interrupted = False
         self.state = State.READY
