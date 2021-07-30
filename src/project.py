@@ -1,6 +1,5 @@
 import sys
 import os
-import random
 from typing import List
 import algorithms
 from process import Process
@@ -18,13 +17,19 @@ class Simulation:
         self.α = α
         self.time_slice = time_slice
         self.processes: List[Process] = []
+        self.srand48(seed)
 
-        random.seed(seed)
+    def srand48(self, seedval):
+        self.Xn = (seedval << 16) + 0x330E
+
+    def drand48(self):
+        self.Xn = (0x5DEECE66D * self.Xn + 0xB) & (2 ** 48 - 1)
+        return self.Xn / (2 ** 48)
 
     def next_exp(self):
-        var = random.expovariate(self.λ)
+        var = -math.log(self.drand48())/self.λ
         while var > self.upper_bound:
-            var = random.expovariate(self.λ)
+            var = -math.log(self.drand48())/self.λ
         return var
 
     def create_processes(self):
@@ -32,7 +37,7 @@ class Simulation:
         self.processes = []
         for id in range(self.n):
             arrival_time = math.floor(self.next_exp())
-            num_bursts = 5  # math.ceil(random.random()*100)
+            num_bursts = math.ceil(self.drand48()*100)
             bursts = []
             for _ in range(num_bursts-1):
                 cpu_burst_time = math.ceil(self.next_exp())
@@ -45,14 +50,15 @@ class Simulation:
             )
         for process in self.processes:
             print(
-                f'Process {process.id} (arrival time {process.arrival_time} ms) {process.num_bursts} CPU bursts (tau {tau}ms)')
+                f'Process {process.id} (arrival time {process.arrival_time} ms) {process.num_bursts} CPU burst{"s" if process.num_bursts != 1 else ""} (tau {tau}ms)')
 
     def run_simulation(self):
         self.create_processes()
         # algorithms.sjf, algorithms.srt, algorithms.rr):
         # for alg in [algorithms.fcfs]:
         with open('simout.txt', 'w+') as f:
-            for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf),('SRT',algorithms.srt), ('RR', algorithms.rr)):
+
+            for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf), ('SRT', algorithms.srt), ('RR', algorithms.rr)):
                 p = copy.deepcopy(self.processes)
                 sim = algorithm(p, self.context_switch_time,
                                 self.α, self.time_slice)
@@ -66,12 +72,49 @@ class Simulation:
                     f'-- CPU utilization: {sim["cpu_utilization"]:.3f}%\n',
                 ]
                 f.writelines(output_lines)
-            print()
 
 
 if __name__ == '__main__':
+    if len(sys.argv) != 8:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
     _, n, seed, λ, upper_bound, context_switch_time, α, time_slice = sys.argv
-    simulation = Simulation(int(n), int(seed), float(λ), int(upper_bound),
-                            int(context_switch_time), float(α), int(time_slice))
 
-    simulation.run_simulation()
+    try:
+        n, seed, λ, upper_bound, context_switch_time, α, time_slice = int(n), int(
+            seed), float(λ), int(upper_bound), int(context_switch_time), float(α), int(time_slice)
+    except:
+        print("ERROR: Its except", file=sys.stderr)
+        sys.exit(1)
+
+    if n > 26 or n < 1:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+    if λ <= 0:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+
+    if upper_bound <= 0:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+
+    if context_switch_time <= 0:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+
+    if time_slice <= 0:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+
+    if α <= 0:
+        print("ERROR: Its error", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        simulation = Simulation(n, seed, λ, upper_bound,
+                                context_switch_time, α, time_slice)
+
+        simulation.run_simulation()
+    except:
+        print("ERROR: Its except", file=sys.stderr)
+        sys.exit(1)
