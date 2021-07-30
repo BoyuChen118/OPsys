@@ -5,6 +5,7 @@ import algorithms
 from process import Process
 import math
 import copy
+import matplotlib.pyplot as plt
 
 
 class Simulation:
@@ -51,11 +52,75 @@ class Simulation:
         for process in self.processes:
             print(
                 f'Process {process.id} (arrival time {process.arrival_time} ms) {process.num_bursts} CPU burst{"s" if process.num_bursts != 1 else ""} (tau {tau}ms)')
+    def question_two(self):
+        self.create_processes()
+        # algorithms.sjf, algorithms.srt, algorithms.rr):
+        # for alg in [algorithms.fcfs]:
+        x = []
+        y = []
+        y2 = []
+        for i in range(100):
+            self.α = i + 1
+            x.append(self.α)
+            for name, algorithm in (('SJF', algorithms.sjf), ('SRT', algorithms.srt)):
+                p = copy.deepcopy(self.processes)
+                sim = algorithm(p, self.context_switch_time,
+                                self.α, self.time_slice)
+                if name == 'SJF':
+                    y.append(sim["avg_turnaround"])
+                else:
+                    y2.append(sim["avg_turnaround"])
+        plt.plot(x,y, label = 'SJF')
+        plt.plot(x,y2, label = 'SRT')
+        plt.xlabel('α value')
+        plt.ylabel('avg_turnaround_time (in milliseconds)')
+        plt.title('Figure 2')
+        plt.legend()
+        plt.show()
 
+
+    def question_one(self):
+        # algorithms.sjf, algorithms.srt, algorithms.rr):
+        # for alg in [algorithms.fcfs]:
+        x = []
+        y = []
+        y2 = []
+        y3 = []
+        y4 = []
+        for i in range(1,26):
+            self.processes = i
+            self.create_processes()
+            x.append(i)
+            for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf), ('SRT', algorithms.srt), ('RR', algorithms.rr)):
+                p = copy.deepcopy(self.processes)
+                sim = algorithm(p, self.context_switch_time,
+                                self.α, self.time_slice)
+                if name == 'FCFS':
+                    y.append(sim["avg_turnaround"])
+                elif name == 'SJF':
+                    y2.append(sim["avg_turnaround"])
+                elif name == 'SRT':
+                    y3.append(sim["avg_turnaround"])
+                else:  #RR 
+                    y4.append(sim["avg_turnaround"])
+        plt.plot(x,y, label = 'FCFS', color = 'k')
+        plt.plot(x,y2, label = 'SJF', color = 'b')
+        plt.plot(x,y3, label = 'SRT', color = 'r')
+        plt.plot(x,y4, label = 'RR', color = 'y')
+        plt.xlabel('processes')
+        plt.ylabel('avg_turnaround_time (in milliseconds)')
+        plt.title('Figure 1')
+        plt.legend()
+        plt.show()
+                
     def run_simulation(self):
         self.create_processes()
         # algorithms.sjf, algorithms.srt, algorithms.rr):
         # for alg in [algorithms.fcfs]:
+
+                
+            
+
         with open('simout.txt', 'w+') as f:
 
             for name, algorithm in (('FCFS', algorithms.fcfs), ('SJF', algorithms.sjf), ('SRT', algorithms.srt), ('RR', algorithms.rr)):
@@ -115,6 +180,8 @@ if __name__ == '__main__':
                                 context_switch_time, α, time_slice)
 
         simulation.run_simulation()
+        # simulation.question_one()
+        # simulation.question_two()
     except:
         print("ERROR: Its except", file=sys.stderr)
         sys.exit(1)
