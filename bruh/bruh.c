@@ -183,14 +183,14 @@ void *findNextMove(void *ar)
     int moveCounter = 0; // keeps track of how many moves are available given the current board state and position
     int lastMove = -1;
     int *ret = calloc(1, sizeof(int));
-    arguments *args = malloc(sizeof *args);
+    
 
     int next = determineNextMove(board, currentRow, currentCol, &moveCounter, &lastMove);
 
     if (moveCounter == 0)
     { // deal with dead end board
 
-        free(args);
+        // free(args);
         printf("thread %d is deadend\n",thread_id);
         if (current_squares < deadEndThreshold)
         { // free the board if covered squares is lower than threshold
@@ -242,13 +242,13 @@ void *findNextMove(void *ar)
         newArgs->board = board;
         newArgs->currentRow = currentRow;
         newArgs->currentCol = currentCol;
-        newArgs->current_squares= current_squares;
+        newArgs->current_squares= current_squares+1;
         newArgs->id = thread_id;
-        printf("(%d,%d), next move is %d, thread is %d\n", currentRow, currentCol, next,thread_id);
+        printf("(%d,%d), last move is %d, thread is %d\n", currentRow, currentCol, next,thread_id);
         findNextMove(newArgs);
     }
     else
-    { // create new thread
+    { // create new threads
         pthread_t tids[8];
         for (int i = 0; i < 8; i++)
         {
@@ -270,7 +270,7 @@ void *findNextMove(void *ar)
                     duplicateboard[i][j] = board[i][j];
                 }
             }
-            // critical section begins
+            arguments *args = malloc(sizeof *args);
             args->board = duplicateboard;
             args->currentCol = currentCol;
             args->currentRow = currentRow;
@@ -289,28 +289,39 @@ void *findNextMove(void *ar)
             n = determineNextMove(board, currentRow, currentCol, &moveCounter, &lastMove);
             tidCounter++;
             next_thread_id++;
-            //critical section ends
         }
         printf("current thread is %ld\n",pthread_self());
 #ifndef NO_PARALLEL
         for (int i = 0; i < tidCounter; i++)
         {
-            printf("THREAD %ldwants to join\n", tids[i]);
-            if (tids[tidCounter] != -1)
+            
+            if (tids[i] != -1)
             {
+                printf("THREAD %ldwants to join\n", tids[i]);
                 void *retFromChild = malloc(0);
                 free(retFromChild);
-                pthread_join(tids[tidCounter], (void**)&retFromChild);
+                int error;
+                error = pthread_join(tids[i], (void**)&retFromChild);
+                printf("THREAD %ld JOINED\n", pthread_self());
                 int potentialHigh = *(int *)retFromChild;
+                if(error != 0 ){
+                    fprintf(stderr, "error detected, error num: %d\n",error);
+                }
                 if (potentialHigh > max_squares)
                 {
                     max_squares = potentialHigh;
                 }
-                printf("THREAD %ld JOINED\n", pthread_self());
+                
+            }
+            else{
+                printf("not valid thread: %ld\n", tids[i]);
             }
         }
 #endif
     }
+    int *c = calloc(1,sizeof(int));
+    *c = current_squares;
+    return c;
 }
 int simulate(int argc, char *argv[])
 {
@@ -333,6 +344,8 @@ int simulate(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    printf("MAIN: Solving Sonny's knight's tour problem for a %dx%d board\n", rows, cols);
+    printf("MAIN: Sonny starts at row %d and column %d (move #1)\n",startingRow, startingCol);
     int **board = calloc(rows, sizeof(int *));
     for (int i = 0; i < rows; i++)
     {
