@@ -183,6 +183,7 @@ void *findNextMove(void *ar)
     int currentCol = a->currentCol;
     int thread_id = a->id;
     int current_squares = a->current_squares;
+    int largestChild = 0;
     int moveCounter = 0; // keeps track of how many moves are available given the current board state and position
     int lastMove = -1;
     retarguments *ret = malloc(sizeof *ret);
@@ -202,6 +203,7 @@ void *findNextMove(void *ar)
     { // deal with dead end board
 
         // free(args);
+
         if (current_squares < deadEndThreshold)
         { // free the board if covered squares is lower than threshold
             printf("%s Dead end at move #%d\n", display, current_squares);
@@ -315,6 +317,12 @@ void *findNextMove(void *ar)
             {
                 max_squares = potentialHigh;
             }
+            if (potentialHigh > largestChild)
+            {
+                
+                largestChild = potentialHigh;
+                //printf("set largest child to %d in thread %d",largestChild,thread_id);
+            }
 #endif
             if (error != 0)
             {
@@ -342,6 +350,10 @@ void *findNextMove(void *ar)
                 {
                     max_squares = potentialHigh;
                 }
+                if (potentialHigh > largestChild)
+                {
+                    largestChild = potentialHigh;
+                }
             }
             else
             {
@@ -350,10 +362,14 @@ void *findNextMove(void *ar)
         }
 #endif
     }
-    int *c = calloc(1, sizeof(int));
-    *c = current_squares;
+    ret->id = thread_id;
+   // printf("thread %d will return with %d covered\n",thread_id, largestChild);
+    ret->squares_covered = largestChild;
     free(display);
-    return c;
+    if(pthread_self() != originThread)
+        pthread_exit(ret);
+    else
+        return ret;
 }
 int simulate(int argc, char *argv[])
 {
@@ -413,7 +429,7 @@ int simulate(int argc, char *argv[])
 
     if (deadEndThreshold == 1 && !solutions)
         printf("MAIN: Dead end board%s covering at least %d square:\n", deadEndIndex != 1 ? "s" : "", deadEndThreshold);
-    else if(deadEndThreshold != 1 && !solutions)
+    else if (deadEndThreshold != 1 && !solutions)
         printf("MAIN: Dead end board%s covering at least %d squares:\n", deadEndIndex != 1 ? "s" : "", deadEndThreshold);
     if (!solutions)
     {
