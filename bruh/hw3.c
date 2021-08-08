@@ -13,8 +13,10 @@ extern int max_squares;
 extern char ***dead_end_boards; /* do NOT free this memory in hw3.c */
 int boardRows, boardCols = 0;
 int deadEndThreshold;
-int deadEndCount = 0;
+int deadEndIndex = 0;
 pthread_t originThread;
+int solutions = 0;
+int deadEndStorageLength = 4;
 /*
 NOTE: check moves counter clockwise
 */
@@ -85,8 +87,9 @@ void makeNextMove(int *r, int *c, int movenum, int *current_squares, int **board
         *c += 1;
         break;
     }
-    if(*r > boardRows || *c > boardCols){
-        fprintf(stderr, "Out of bound, r is %d, c is %d\n",*r, *c);
+    if (*r > boardRows || *c > boardCols)
+    {
+        fprintf(stderr, "Out of bound, r is %d, c is %d\n", *r, *c);
         return;
     }
     board[(int)*r][(int)*c] = *current_squares;
@@ -182,8 +185,16 @@ void *findNextMove(void *ar)
     int current_squares = a->current_squares;
     int moveCounter = 0; // keeps track of how many moves are available given the current board state and position
     int lastMove = -1;
-    int *ret = calloc(1, sizeof(int));
-    
+    retarguments *ret = malloc(sizeof *ret);
+    char *display = malloc(10 * sizeof(char));
+    if (pthread_self() != originThread)
+    {
+        sprintf(display, "%s %d:", "THREAD", thread_id);
+    }
+    else
+    {
+        sprintf(display, "%s:", "MAIN");
+    }
 
     int next = determineNextMove(board, currentRow, currentCol, &moveCounter, &lastMove);
 
@@ -191,43 +202,51 @@ void *findNextMove(void *ar)
     { // deal with dead end board
 
         // free(args);
-        printf("thread %d is deadend\n",thread_id);
         if (current_squares < deadEndThreshold)
         { // free the board if covered squares is lower than threshold
-            // for (int i = 0; i <= boardRows; i++)
-            // {
-            //     free(board[i]);
-            // }
-            // free(board);
-            printf("\nDEAD END");
-            printf("cur pos: (%d,%d), next is %d", currentRow, currentCol, next);
-            printBoard(board);
-            
+            printf("%s Dead end at move #%d\n", display, current_squares);
+            for (int i = 0; i <= boardRows; i++)
+            {
+                free(board[i]);
+            }
+            free(board);
         }
-        else if (current_squares == (boardRows + 1) * (boardCols + 1) - 1)
+        else if (current_squares == (boardRows + 1) * (boardCols + 1))
         { // solution is found
-           
+            printf("%s Sonny found a full knight's tour!\n", display);
+            solutions++;
         }
         else
-        { // update dead end boards with new dead end board
-            // dead_end_boards[deadEndCount] = calloc(boardRows + 1, sizeof(char *));
-            // for (int i = 0; i <= boardRows; i++)
-            // {
-            //     dead_end_boards[deadEndCount][i] = calloc(boardCols + 1, sizeof(char));
-            //     for (int j = 0; j <= boardCols; j++)
-            //     {
-            //         if (board[i][j] != -1)
-            //             dead_end_boards[deadEndCount][i][j] = 'S';
-            //         else
-            //             dead_end_boards[deadEndCount][i][j] = '.';
-            //     }
-            // }
-            // deadEndCount++;
-            printf("\nvery dead\n");
-            
-            
+        { // update dead end boards with new dead end boardf
+            printf("%s Dead end at move #%d\n", display, current_squares);
+            if (deadEndIndex < deadEndStorageLength)
+            {
+                dead_end_boards[deadEndIndex] = calloc(boardRows + 1, sizeof(char *));
+                for (int i = 0; i <= boardRows; i++)
+                {
+                    dead_end_boards[deadEndIndex][i] = calloc(boardCols + 1, sizeof(char));
+                    for (int j = 0; j <= boardCols; j++)
+                    {
+                        if (board[i][j] != -1)
+                            dead_end_boards[deadEndIndex][i][j] = 'S';
+                        else
+                            dead_end_boards[deadEndIndex][i][j] = '.';
+                    }
+                }
+                deadEndIndex++;
+            }
+            else
+            { // realloc
+                dead_end_boards = realloc(dead_end_boards, (deadEndStorageLength + 1) * sizeof(char **));
+                deadEndStorageLength++;
+            }
         }
-        *ret = current_squares;
+        ret->squares_covered = current_squares;
+        ret->id = thread_id;
+        if (pthread_self() == originThread)
+        {
+            return ret;
+        }
         pthread_exit(ret);
         // exit the function & report back to its parent thread the squares it covered
     }
@@ -242,14 +261,16 @@ void *findNextMove(void *ar)
         newArgs->board = board;
         newArgs->currentRow = currentRow;
         newArgs->currentCol = currentCol;
-        newArgs->current_squares= current_squares+1;
+        newArgs->current_squares = current_squares;
         newArgs->id = thread_id;
-        printf("(%d,%d), last move is %d, thread is %d\n", currentRow, currentCol, next,thread_id);
+        //printf("(%d,%d), last move is %d, thread is %d\n", currentRow, currentCol, next,thread_id);
         findNextMove(newArgs);
     }
     else
     { // create new threads
         pthread_t tids[8];
+
+        printf("%s %d possible moves after move #%d; creating %d child threads...\n", display, moveCounter, current_squares, moveCounter);
         for (int i = 0; i < 8; i++)
         {
             tids[i] = -1;
@@ -260,7 +281,6 @@ void *findNextMove(void *ar)
         {
             int error;
             // makeNextMove(&currentRow, &currentCol, n, &current_squares, board);
-            printf("n is %d, thread is %ld\n", n, pthread_self());
             int **duplicateboard = calloc(boardRows + 1, sizeof(int *));
             for (int i = 0; i <= boardRows; i++)
             {
@@ -275,52 +295,64 @@ void *findNextMove(void *ar)
             args->currentCol = currentCol;
             args->currentRow = currentRow;
             args->id = next_thread_id;
-            args->current_squares = current_squares+1;
+            args->current_squares = current_squares;
             makeNextMove(&args->currentRow, &args->currentCol, n, &args->current_squares, args->board);
-            printf("current position: (%d, %d)\n", args->currentRow, args->currentCol);
-            printf("\n");
             error = pthread_create(&(tids[tidCounter]),
                                    NULL,
                                    &findNextMove, args);
+            //printf("Thread %d is created!!!!!!!!!!!!\n", args->id);
+            next_thread_id++;
+#ifdef NO_PARALLEL
+            retarguments *retFromChild;
+            error = pthread_join(tids[tidCounter], (void **)&retFromChild);
+            printf("%s Thread %d joined (returned %d)\n", display, retFromChild->id, retFromChild->squares_covered);
+            int potentialHigh = retFromChild->squares_covered;
+            if (error != 0)
+            {
+                fprintf(stderr, "error detected, error num: %d\n", error);
+            }
+            if (potentialHigh > max_squares)
+            {
+                max_squares = potentialHigh;
+            }
+#endif
             if (error != 0)
             {
                 fprintf(stderr, "ERROR: Thread can't be created");
             }
             n = determineNextMove(board, currentRow, currentCol, &moveCounter, &lastMove);
             tidCounter++;
-            next_thread_id++;
         }
-        printf("current thread is %ld\n",pthread_self());
 #ifndef NO_PARALLEL
         for (int i = 0; i < tidCounter; i++)
         {
-            
+
             if (tids[i] != -1)
             {
-                printf("THREAD %ldwants to join\n", tids[i]);
-                void *retFromChild = malloc(0);
-                free(retFromChild);
+                retarguments *retFromChild;
                 int error;
-                error = pthread_join(tids[i], (void**)&retFromChild);
-                printf("THREAD %ld JOINED\n", pthread_self());
-                int potentialHigh = *(int *)retFromChild;
-                if(error != 0 ){
-                    fprintf(stderr, "error detected, error num: %d\n",error);
+                error = pthread_join(tids[i], (void **)&retFromChild);
+                printf("%s Thread %d joined (returned %d)\n", display, retFromChild->id, retFromChild->squares_covered);
+                int potentialHigh = retFromChild->squares_covered;
+                if (error != 0)
+                {
+                    fprintf(stderr, "error detected, error num: %d\n", error);
                 }
                 if (potentialHigh > max_squares)
                 {
                     max_squares = potentialHigh;
                 }
-                
             }
-            else{
+            else
+            {
                 printf("not valid thread: %ld\n", tids[i]);
             }
         }
 #endif
     }
-    int *c = calloc(1,sizeof(int));
+    int *c = calloc(1, sizeof(int));
     *c = current_squares;
+    free(display);
     return c;
 }
 int simulate(int argc, char *argv[])
@@ -345,7 +377,7 @@ int simulate(int argc, char *argv[])
     }
 
     printf("MAIN: Solving Sonny's knight's tour problem for a %dx%d board\n", rows, cols);
-    printf("MAIN: Sonny starts at row %d and column %d (move #1)\n",startingRow, startingCol);
+    printf("MAIN: Sonny starts at row %d and column %d (move #1)\n", startingRow, startingCol);
     int **board = calloc(rows, sizeof(int *));
     for (int i = 0; i < rows; i++)
     {
@@ -364,10 +396,45 @@ int simulate(int argc, char *argv[])
     a->currentCol = startingCol;
     a->id = next_thread_id;
     a->current_squares = 1;
-
-    findNextMove(a);
     originThread = pthread_self();
-    // start checking surrounding positions
+    retarguments *retarg = findNextMove(a);
+    if (retarg->squares_covered > max_squares)
+    {
+        max_squares = retarg->squares_covered;
+    }
+    if (solutions)
+        printf("MAIN: All threads joined; found %d possible ways to achieve a full knight's tour\n", solutions);
+    else if (max_squares == 1)
+        printf("MAIN: All threads joined; best solution(s) visited %d square out of %d\n", max_squares, (boardRows + 1) * (boardCols + 1));
+    else
+        printf("MAIN: All threads joined; best solution(s) visited %d squares out of %d\n", max_squares, (boardRows + 1) * (boardCols + 1));
+
+    //print deadEnd boards
+
+    if (deadEndThreshold == 1 && !solutions)
+        printf("MAIN: Dead end board%s covering at least %d square:\n", deadEndIndex != 1 ? "s" : "", deadEndThreshold);
+    else if(deadEndThreshold != 1 && !solutions)
+        printf("MAIN: Dead end board%s covering at least %d squares:\n", deadEndIndex != 1 ? "s" : "", deadEndThreshold);
+    if (!solutions)
+    {
+        for (int i = 0; i < deadEndIndex; i++)
+        {
+            for (int r = 0; r <= boardRows; r++)
+            {
+                if (r == 0)
+                    printf("MAIN: >>");
+                else
+                    printf("MAIN:   ");
+                for (int c = 0; c <= boardCols; c++)
+                {
+                    printf("%c", dead_end_boards[i][r][c]);
+                }
+                if (r == boardRows)
+                    printf("<<");
+                printf("\n");
+            }
+        }
+    }
 
     return EXIT_SUCCESS;
 }
