@@ -17,6 +17,7 @@ int deadEndIndex = 0;
 pthread_t originThread;
 int solutions = 0;
 int deadEndStorageLength = 4;
+pthread_mutex_t lock;
 /*
 NOTE: check moves counter clockwise
 */
@@ -221,27 +222,26 @@ void *findNextMove(void *ar)
         else
         { // update dead end boards with new dead end boardf
             printf("%s Dead end at move #%d\n", display, current_squares);
-            if (deadEndIndex < deadEndStorageLength)
-            {
-                dead_end_boards[deadEndIndex] = calloc(boardRows + 1, sizeof(char *));
-                for (int i = 0; i <= boardRows; i++)
-                {
-                    dead_end_boards[deadEndIndex][i] = calloc(boardCols + 1, sizeof(char));
-                    for (int j = 0; j <= boardCols; j++)
-                    {
-                        if (board[i][j] != -1)
-                            dead_end_boards[deadEndIndex][i][j] = 'S';
-                        else
-                            dead_end_boards[deadEndIndex][i][j] = '.';
-                    }
-                }
-                deadEndIndex++;
-            }
-            else
-            { // realloc
+            pthread_mutex_lock(&lock);
+            if(deadEndIndex >= deadEndStorageLength){ // allocate space for dead end storage if there isn't enough space
                 dead_end_boards = realloc(dead_end_boards, (deadEndStorageLength + 1) * sizeof(char **));
                 deadEndStorageLength++;
             }
+
+            dead_end_boards[deadEndIndex] = calloc(boardRows + 1, sizeof(char *));
+            for (int i = 0; i <= boardRows; i++)
+            {
+                dead_end_boards[deadEndIndex][i] = calloc(boardCols + 1, sizeof(char));
+                for (int j = 0; j <= boardCols; j++)
+                {
+                    if (board[i][j] != -1)
+                        dead_end_boards[deadEndIndex][i][j] = 'S';
+                    else
+                        dead_end_boards[deadEndIndex][i][j] = '.';
+                }
+            }
+            deadEndIndex++;
+            pthread_mutex_unlock(&lock);
         }
         ret->squares_covered = current_squares;
         ret->id = thread_id;
@@ -319,7 +319,7 @@ void *findNextMove(void *ar)
             }
             if (potentialHigh > largestChild)
             {
-                
+
                 largestChild = potentialHigh;
                 //printf("set largest child to %d in thread %d",largestChild,thread_id);
             }
@@ -363,10 +363,10 @@ void *findNextMove(void *ar)
 #endif
     }
     ret->id = thread_id;
-   // printf("thread %d will return with %d covered\n",thread_id, largestChild);
+    // printf("thread %d will return with %d covered\n",thread_id, largestChild);
     ret->squares_covered = largestChild;
     free(display);
-    if(pthread_self() != originThread)
+    if (pthread_self() != originThread)
         pthread_exit(ret);
     else
         return ret;
